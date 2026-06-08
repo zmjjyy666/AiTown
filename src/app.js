@@ -11,6 +11,7 @@ const state = {
   selectedInsight: "",
   memories: [],
   timeline: [],
+  metricLogs: [],
   stats: {
     happiness: 78,
     harmony: 65,
@@ -24,11 +25,45 @@ const state = {
   dayStarted: false,
   dayEnded: false,
   memoryFilter: "latest",
+  metricFilter: "latest",
   milestoneUnlocked: false,
 };
 
 const initialResidents = residents.map((resident) => ({ ...resident }));
 const initialStats = { ...state.stats };
+
+const interactionRules = {
+  coffee: {
+    label: "轻社交",
+    summary: "缓解情绪、拉近关系",
+    stats: { happiness: 4, harmony: 2, prosperity: 1 },
+    mood: [5, 3, 1],
+  },
+  book: {
+    label: "共同学习",
+    summary: "沉淀记忆、带来新点子",
+    stats: { happiness: 2, harmony: 2, prosperity: 3 },
+    mood: [3, 2, 2],
+  },
+  clinic: {
+    label: "互相照顾",
+    summary: "解决焦虑、提升安全感",
+    stats: { happiness: 3, harmony: 4, prosperity: 1 },
+    mood: [4, 4, 1],
+  },
+  festival: {
+    label: "公共活动",
+    summary: "带动人气、增强归属感",
+    stats: { happiness: 3, harmony: 3, prosperity: 4 },
+    mood: [3, 3, 3],
+  },
+};
+
+const statDescriptions = {
+  prosperity: "繁荣度：小镇资源、人流和公共活力。图书馆讨论、广场活动提升更多。",
+  happiness: "幸福度：居民当天的愉悦和满足感。轻松社交、被帮助、共同活动都会提升。",
+  harmony: "和谐度：居民关系和互相信任。诊所求助、共同活动提升更多。",
+};
 
 function resetToday() {
   state.day = 1;
@@ -41,6 +76,7 @@ function resetToday() {
   state.actionHint = "";
   state.memories = [];
   state.timeline = [];
+  state.metricLogs = [];
   state.stats = { ...initialStats };
   residents.forEach((resident, index) => {
     Object.assign(resident, initialResidents[index]);
@@ -52,6 +88,7 @@ function resetToday() {
   state.dayStarted = false;
   state.dayEnded = false;
   state.memoryFilter = "latest";
+  state.metricFilter = "latest";
   state.milestoneUnlocked = false;
   render();
 }
@@ -65,11 +102,11 @@ const storyTemplates = [
 const insightCopy = {
   happiness: {
     title: "幸福度",
-    text: "幸福度会在居民完成积极社交、互相帮助或生成温暖剧情后提升。当前小镇幸福度较高，适合触发咖啡馆、读书会这类轻松事件。",
+    text: "幸福度衡量居民当天是否过得开心。一起喝咖啡提升最多，诊所求助和广场活动也会明显提升；它会参与日终总结，数值越高，小镇剧情越偏温暖。",
   },
   mood: {
     title: "当前居民心情",
-    text: "心情显示你当前选中居民的状态。点击左侧居民或地图头像可以切换观察对象，后续剧情会围绕选中角色的目标和位置展开。",
+    text: "心情是单个 NPC 的状态。确认互动后，主角心情提升最多，参与者次之，记录者少量提升；第二天开始时，居民会根据昨日状态轻微回落或恢复。",
   },
   memory: {
     title: "记忆目标",
@@ -83,6 +120,58 @@ function byId(list, id) {
 
 function rotate(list, offset) {
   return list.slice(offset).concat(list.slice(0, offset));
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function formatDelta(value) {
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+function interactionImpact(hookId) {
+  return interactionRules[hookId] || interactionRules.coffee;
+}
+
+function applyInteractionImpact(cast, hook) {
+  const rule = interactionImpact(hook.id);
+  const statChanges = Object.entries(rule.stats).map(([key, delta]) => {
+    const before = state.stats[key];
+    const after = clampScore(before + delta);
+    state.stats[key] = after;
+    return { key, before, after, delta: after - before };
+  });
+
+  const moodChanges = cast.map((resident, index) => {
+    const moodDelta = rule.mood[index] || 0;
+    const before = resident.mood;
+    const after = clampScore(before + moodDelta);
+    resident.mood = after;
+    return {
+      id: resident.id,
+      name: resident.name,
+      role: ["主角", "参与者", "记录者"][index],
+      before,
+      after,
+      delta: after - before,
+    };
+  });
+
+  return { rule, statChanges, moodChanges };
+}
+
+function impactLine(hookId) {
+  const rule = interactionImpact(hookId);
+  return `幸福 ${formatDelta(rule.stats.happiness)} · 和谐 ${formatDelta(rule.stats.harmony)} · 繁荣 ${formatDelta(rule.stats.prosperity)}`;
+}
+
+function statName(key) {
+  return {
+    happiness: "幸福",
+    harmony: "和谐",
+    prosperity: "繁荣",
+  }[key];
 }
 
 function composeStory() {
@@ -181,6 +270,11 @@ function generateStory(options = { record: true }) {
     state.actionHint = "记忆目标已达成：已解锁“小镇回顾”，日终总结会包含更多回顾信息。";
   }
 
+  const impact = applyInteractionImpact(cast, hook);
+  const moodImpact = impact.moodChanges
+    .map((change) => `${change.name}（${change.role}）${formatDelta(change.delta)}`)
+    .join(" · ");
+
   const event = {
     day: state.day,
     time: state.time,
@@ -188,6 +282,8 @@ function generateStory(options = { record: true }) {
     text: hook.label,
     place: hook.place,
     type: hook.boost,
+    impact: impactLine(hook.id),
+    moodImpact,
     count: 1,
   };
   const latest = state.timeline[0];
@@ -197,9 +293,20 @@ function generateStory(options = { record: true }) {
     state.timeline = [event, ...state.timeline].slice(0, 8);
   }
 
-  state.stats.happiness = Math.min(100, state.stats.happiness + 3);
-  state.stats.harmony = Math.min(100, state.stats.harmony + 2);
-  state.stats.prosperity = Math.min(100, state.stats.prosperity + 1);
+  const log = {
+    id: `metric-${state.day}-${state.slotIndex}-${state.interactionId}`,
+    day: state.day,
+    time: state.time,
+    hook: hook.label,
+    place: hook.place,
+    summary: impact.rule.summary,
+    statChanges: impact.statChanges,
+    moodChanges: impact.moodChanges,
+  };
+  state.metricLogs = [log, ...state.metricLogs].slice(0, 16);
+
+  const rule = impact.rule;
+  state.actionHint = `${hook.label}完成：${rule.summary}。${impactLine(hook.id)}，${cast[0].name}心情 ${formatDelta(rule.mood[0])}。`;
   moveToNextInteractionSlot();
 }
 
@@ -211,8 +318,9 @@ function advanceToNextDay() {
   state.actionHint = "";
   state.dayEnded = false;
   state.time = daySlots[0];
-  residents.forEach((resident, index) => {
-    resident.mood = Math.max(35, Math.min(98, resident.mood + (index === state.day % 3 ? 4 : -1)));
+  residents.forEach((resident) => {
+    const recovery = state.stats.harmony >= 80 ? 1 : 0;
+    resident.mood = clampScore(resident.mood - 2 + recovery);
   });
   state.story = "";
   state.storyCommitted = false;
@@ -225,7 +333,6 @@ function moveToNextInteractionSlot() {
   state.selectedHookId = "";
   state.selectedInsight = "";
   state.rerollCount = 0;
-  state.actionHint = "";
   state.story = "";
   state.storyCommitted = false;
   state.selectionStarted = state.dayStarted;
@@ -270,11 +377,15 @@ function showInsight(kind) {
 }
 
 function statBar(label, value, icon) {
+  const description = statDescriptions[
+    label === "繁荣度" ? "prosperity" : label === "幸福度" ? "happiness" : "harmony"
+  ];
   return `
     <div class="stat-row">
       <span>${icon} ${label}</span>
       <strong>${value}</strong>
       <div class="meter"><i style="width:${value}%"></i></div>
+      <small>${description}</small>
     </div>
   `;
 }
@@ -296,6 +407,7 @@ function residentCard(resident) {
 function memoryCard(memory) {
   const text = memory.text.length > 92 ? `${memory.text.slice(0, 92)}...` : memory.text;
   const icon = memoryIcon(memory);
+  const timeLabel = state.memoryFilter === "all" ? `第 ${memory.day || 1} 天 · ${memory.time}` : memory.time;
   return `
     <article class="memory">
       <div class="memory-icon ${icon.className}" title="${icon.label}" aria-label="${icon.label}">
@@ -305,7 +417,7 @@ function memoryCard(memory) {
         <p>${text}</p>
         <small>${memory.actor} · ${memory.place}</small>
       </div>
-      <time>${memory.time}</time>
+      <time>${timeLabel}</time>
     </article>
   `;
 }
@@ -416,14 +528,112 @@ function memoryTab(id, label) {
 function timelineItem(item) {
   const count = item.count > 1 ? `<strong class="event-count">x${item.count}</strong>` : "";
   const place = item.place ? `<small>${item.place}</small>` : "";
+  const impact = item.impact ? `<small class="timeline-impact">${item.impact}</small>` : "";
+  const moodImpact = item.moodImpact ? `<small class="timeline-mood">${item.moodImpact}</small>` : "";
   return `
     <div class="timeline-item ${item.type}">
       <b>${item.time}${count}</b>
       <span>${item.actor}</span>
       <em>${item.text}</em>
       ${place}
+      ${impact}
+      ${moodImpact}
     </div>
   `;
+}
+
+function visibleMetricLogs() {
+  if (!state.metricLogs.length) {
+    return [];
+  }
+
+  const days = [...new Set(state.metricLogs.map((log) => log.day || 1))].sort((a, b) => b - a);
+  const selectedDay = state.metricFilter === "latest" ? days[0] : Number(state.metricFilter.replace("day-", ""));
+  return state.metricFilter === "all"
+    ? state.metricLogs
+    : state.metricLogs.filter((log) => (log.day || 1) === selectedDay);
+}
+
+function metricDays() {
+  return [...new Set(state.metricLogs.map((log) => log.day || 1))].sort((a, b) => b - a);
+}
+
+function metricLogCard(log) {
+  const timeLabel = state.metricFilter === "all" ? `第 ${log.day} 天 · ${log.time}` : log.time;
+  const statItems = log.statChanges
+    .map(
+      (change) => `
+        <span class="metric-chip">
+          <small>${statName(change.key)}</small>
+          <b>${formatDelta(change.delta)}</b>
+          <em>${change.before}→${change.after}</em>
+        </span>
+      `,
+    )
+    .join("");
+  const moodItems = log.moodChanges
+    .map(
+      (change) => `
+        <span class="metric-chip">
+          <small>${change.name} · ${change.role}</small>
+          <b>${formatDelta(change.delta)}</b>
+          <em>${change.before}→${change.after}</em>
+        </span>
+      `,
+    )
+    .join("");
+
+  return `
+    <article class="metric-log">
+      <div class="memory-icon metric" title="指标变化" aria-label="指标变化">
+        <span>数</span>
+      </div>
+      <div class="metric-log-body">
+        <p>${log.hook}后，${log.summary}。</p>
+        <small>${log.place} · 小镇指标</small>
+        <div class="metric-log-grid town">${statItems}</div>
+        <small>参与角色心情</small>
+        <div class="metric-log-grid mood">${moodItems}</div>
+      </div>
+      <time>${timeLabel}</time>
+    </article>
+  `;
+}
+
+function metricLogPanel() {
+  const logs = visibleMetricLogs();
+  const days = metricDays();
+  const label = state.metricFilter === "all" ? "全部" : state.metricFilter === "latest" ? "最新" : `第 ${state.metricFilter.replace("day-", "")} 天`;
+  return `
+    <section class="status-card metric-log-card">
+      <div class="section-title">
+        <h2>指标更新记录</h2>
+        <span>${label} ${logs.length} 条</span>
+      </div>
+      <p class="metric-log-note">每次确认互动后，都会记录小镇指标和参与角色心情的变化。</p>
+      ${
+        days.length
+          ? `<div class="memory-tabs metric-tabs">
+              ${metricTab("latest", "最新")}
+              ${metricTab("all", "全部")}
+              ${days.map((day) => metricTab(`day-${day}`, `第 ${day} 天`)).join("")}
+            </div>`
+          : ""
+      }
+      <div class="metric-log-list">
+        ${
+          logs.length
+            ? logs.map(metricLogCard).join("")
+            : `<div class="empty-state"><strong>还没有指标变化</strong><span>${state.metricLogs.length ? "这个分类下还没有记录。" : "开始剧情并确认互动后，这里会显示本次互动带来的数值更新。"}</span></div>`
+        }
+      </div>
+    </section>
+  `;
+}
+
+function metricTab(id, label) {
+  const active = state.metricFilter === id || (id === "latest" && state.metricFilter === "latest") ? "active" : "";
+  return `<button class="memory-tab ${active}" data-metric-filter="${id}">${label}</button>`;
 }
 
 function visibleTimeline() {
@@ -433,7 +643,13 @@ function visibleTimeline() {
 function hookButton(hook) {
   const active = hook.id === state.selectedHookId ? "active" : "";
   const disabled = state.selectionStarted ? "" : "disabled";
-  return `<button class="hook ${active}" data-hook="${hook.id}" ${disabled}>${hook.label}</button>`;
+  const rule = interactionImpact(hook.id);
+  return `
+    <button class="hook ${active}" data-hook="${hook.id}" ${disabled}>
+      <strong>${hook.label}</strong>
+      <small>${rule.label} · ${impactLine(hook.id)}</small>
+    </button>
+  `;
 }
 
 function hookControls() {
@@ -442,6 +658,21 @@ function hookControls() {
   }
 
   return `<div class="hooks">${hooks.map(hookButton).join("")}</div>`;
+}
+
+function storyImpactPreview() {
+  if (!state.selectedHookId || state.dayEnded || state.selectedInsight) {
+    return "";
+  }
+
+  const rule = interactionImpact(state.selectedHookId);
+  return `
+    <div class="impact-preview">
+      <strong>本次互动影响</strong>
+      <span>${rule.summary} · ${impactLine(state.selectedHookId)}</span>
+      <small>确认后，当前剧情主角心情 ${formatDelta(rule.mood[0])}，参与者 ${formatDelta(rule.mood[1])}，记录者 ${formatDelta(rule.mood[2])}。</small>
+    </div>
+  `;
 }
 
 function topStatButton(kind, icon, label, value, description) {
@@ -601,6 +832,7 @@ function render() {
           ${statBar("幸福度", state.stats.happiness, "❤")}
           ${statBar("和谐度", state.stats.harmony, "●")}
         </section>
+        ${metricLogPanel()}
       </aside>
 
       <section class="stage">
@@ -643,6 +875,7 @@ function render() {
           </div>
           <div class="story-purpose">${storyPurposeText()}</div>
           <p>${storyPanelText()}</p>
+          ${storyImpactPreview()}
           ${hookControls()}
           <button class="secondary-action" id="nextDay" ${storyAdvanceDisabled()}>${storyAdvanceLabel()}</button>
         </section>
@@ -703,6 +936,13 @@ function bindEvents() {
   document.querySelectorAll("[data-memory-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       state.memoryFilter = button.dataset.memoryFilter;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-metric-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.metricFilter = button.dataset.metricFilter;
       render();
     });
   });

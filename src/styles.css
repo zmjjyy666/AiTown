@@ -363,6 +363,13 @@ h2 {
   color: var(--teal-dark);
 }
 
+.stat-row small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .meter {
   grid-column: 1 / -1;
   height: 7px;
@@ -544,6 +551,16 @@ h2 {
   font-weight: 700;
 }
 
+.timeline-item .timeline-impact {
+  color: #8a775b;
+  font-weight: 600;
+}
+
+.timeline-item .timeline-mood {
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
 .event-count {
   padding: 2px 6px;
   border-radius: 99px;
@@ -556,6 +573,103 @@ h2 {
   display: grid;
   align-content: start;
   gap: 14px;
+}
+
+.metric-log-card {
+  display: grid;
+  gap: 10px;
+}
+
+.metric-log-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.metric-tabs {
+  margin-top: -2px;
+}
+
+.metric-log-list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.metric-log {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.metric-log-body {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.metric-log-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.metric-log-body > small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metric-log time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metric-log-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.metric-chip {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.72);
+  border: 1px solid rgba(230, 222, 208, 0.82);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.metric-chip b,
+.metric-chip em,
+.metric-chip small {
+  display: block;
+}
+
+.metric-chip b {
+  color: var(--teal-dark);
+  font-size: 13px;
+}
+
+.metric-chip em,
+.metric-chip small {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.metric-log-grid.mood .metric-chip {
+  background: rgba(232, 251, 245, 0.54);
 }
 
 .memory {
@@ -602,6 +716,11 @@ h2 {
 .memory-icon.festival {
   background: #fff5d9;
   color: #a37818;
+}
+
+.memory-icon.metric {
+  background: rgba(42, 168, 157, 0.12);
+  color: var(--teal-dark);
 }
 
 .memory p {
@@ -824,9 +943,26 @@ h2 {
   font-weight: 700;
 }
 
+.hook strong,
+.hook small {
+  display: block;
+}
+
+.hook small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .hook.active {
   border-color: rgba(42, 168, 157, 0.45);
   background: rgba(42, 168, 157, 0.1);
+  color: var(--teal-dark);
+}
+
+.hook.active small {
   color: var(--teal-dark);
 }
 
@@ -845,6 +981,27 @@ h2 {
   color: var(--teal-dark);
   font-size: 13px;
   font-weight: 800;
+}
+
+.impact-preview {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(232, 173, 59, 0.42);
+  border-radius: 8px;
+  background: rgba(255, 248, 228, 0.62);
+}
+
+.impact-preview strong {
+  font-size: 13px;
+}
+
+.impact-preview span,
+.impact-preview small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 1100px) {
@@ -909,6 +1066,10 @@ h2 {
 
   .timeline-grid {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+
+  .metric-log-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .map-avatar img {
