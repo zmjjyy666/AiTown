@@ -349,7 +349,8 @@ function groupedMemories() {
       ${memoryTab("all", "全部")}
       ${days.map((day) => memoryTab(`day-${day}`, `第 ${day} 天`)).join("")}
     </div>
-    ${Object.keys(groups)
+    <div class="memory-scroll" aria-label="记忆列表">
+      ${Object.keys(groups)
     .sort((a, b) => Number(b) - Number(a))
     .map(
       (day) => `
@@ -363,6 +364,7 @@ function groupedMemories() {
       `,
     )
     .join("")}
+    </div>
   `;
 }
 
